@@ -1,0 +1,11 @@
+.venv/
+__pycache__/
+*.pyc
+output-*.txt
+out2.pdb
+RDF.txt
+Sorted_angles/
+Angle_distribution_frame_*.txt
+*.egg-info/
+dist/
+build/
