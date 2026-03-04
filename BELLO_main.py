@@ -583,12 +583,12 @@ def BELLO(url, celldmx_raw, celldmy_raw, celldmz_raw, automatic,
 		q6flframe.append(q6fl)
 		print(Endf)
 
-	if angle_condition:
-		cond = (N / Natom) % 500
-		if (cond == 0) or ((N / Natom) == int((len(fa) / Natom) - 1)):
-			txtt = "Angle_distribution_frame_%d.txt" % (N / Natom)
-			np.savetxt(txtt, tetatot, fmt="%s")
-			tetatot = []
+		if angle_condition:
+			frame_num = N // Natom
+			if (frame_num % 500 == 0) or (frame_num == int((len(fa) / Natom) - 1)):
+				txtt = "Angle_distribution_frame_%d.txt" % frame_num
+				np.savetxt(txtt, tetatot, fmt="%s")
+				tetatot = []
 
 	np.savetxt('output-q3fl.txt', np.array(q3flframe, dtype=object), delimiter=',', fmt="%s")
 	np.savetxt('output-q4fl.txt', np.array(q4flframe, dtype=object), delimiter=',', fmt="%s")

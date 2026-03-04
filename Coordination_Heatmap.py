@@ -44,8 +44,12 @@ def coordination_heatmap(*elements_raw):
 		grid.loc[:column_length(elements, 6), '6_fold_index'] = fold6_index
 		return grid
 
-	elements = list(elements_raw)
-	elements = [item for sublist in elements for item in sublist]
+	elements = []
+	for item in elements_raw:
+		if isinstance(item, (list, tuple)):
+			elements.extend(item)
+		else:
+			elements.append(item)
 	elements.sort()
 
 	columns = ['3_fold_index', '3_fold', '4_fold_index', '4_fold',

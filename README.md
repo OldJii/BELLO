@@ -10,7 +10,7 @@ BELLO (Bond Element Lattice Locality Order) is a post-processing toolkit for cha
 - **Radial pair distribution function** — calculates partial g(r) for any element pair across multi-frame trajectories
 - **Angle distribution function** — sorts bond angles by element triplet and plots histograms with kernel-density-estimation fits
 - **Coordination heatmap** — generates Seaborn heatmaps showing the frequency of element combinations in each coordination type
-- **VASP → XYZ converter** — reads POSCAR / CONTCAR files (Direct or Cartesian) and converts them to XYZ, auto-filling cell dimensions
+- **VASP → XYZ converter** — reads POSCAR / CONTCAR / XDATCAR files and converts them to XYZ, auto-detecting file type and auto-filling cell dimensions; XDATCAR multi-frame trajectories are fully supported
 - **Embedded plots** — all figures render inside the GUI with full Matplotlib navigation (zoom, pan, save)
 - **Chinese / English UI** — one-click language toggle in the top-right corner
 
@@ -98,8 +98,11 @@ python BELLO_GUI.py
 
 ### 5. VASP → XYZ Conversion
 
-1. In the **VASP → XYZ Converter** card, click **Browse** and select a `.vasp` / `POSCAR` / `CONTCAR` file.
-2. Click **Convert**. The converted `.xyz` file path is auto-filled into the input field, and cell dimensions are populated from the lattice vectors.
+1. In the **VASP → XYZ Converter** card, click **Browse** and select a VASP file (`.vasp`, `POSCAR`, `CONTCAR`, or `XDATCAR`).
+2. Click **Convert**. The file type is auto-detected:
+   - **POSCAR / CONTCAR** — single-frame conversion
+   - **XDATCAR** — all frames are extracted into one multi-frame XYZ trajectory, ready for BELLO analysis
+3. The converted `.xyz` file path is auto-filled into the input field, and cell dimensions are populated from the lattice vectors.
 
 ### 6. Language Switching
 
@@ -114,7 +117,7 @@ BELLO/
 ├── Radial_Pair_Distribution_Function.py  # Partial RDF calculation
 ├── Angle_Distribution_Function.py        # Angle sorting and plotting
 ├── Coordination_Heatmap.py               # Coordination heatmap generation
-├── vasp_converter.py                     # VASP POSCAR/CONTCAR → XYZ
+├── vasp_converter.py                     # VASP POSCAR/CONTCAR/XDATCAR → XYZ
 ├── test.xyz                              # Sample trajectory (270 Ge atoms)
 ├── requirements.txt                      # Python dependencies
 ├── setup.sh                              # macOS / Linux setup script

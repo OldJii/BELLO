@@ -25,8 +25,7 @@ def sorter(elements):
                        dtype="f,U8", usecols=(0, 1))
     length = len(file)
 
-    folder_path = pathlib.PurePosixPath(os.getcwd())
-    sorted_folder = pathlib.Path(folder_path, 'Sorted_angles')
+    sorted_folder = pathlib.Path(os.getcwd(), 'Sorted_angles')
     folder_overwrite(sorted_folder)
 
     names = []
@@ -53,7 +52,7 @@ def sorter(elements):
                     if condition:
                         save_name = name + '.txt'
                         names.append(name)
-                        np.savetxt(pathlib.PurePosixPath(sorted_folder, save_name),
+                        np.savetxt(str(sorted_folder / save_name),
                                    sorted_list, fmt="%s")
                         sorted_list = []
                         condition = False
@@ -72,7 +71,7 @@ def sorter(elements):
         ax.set_ylabel('Distribution (arb. units)', size=14)
         ax.set_xlabel('Angles (Theta)', size=14)
 
-        data = np.loadtxt(pathlib.PurePosixPath(sorted_folder, file_names[i]),
+        data = np.loadtxt(str(sorted_folder / file_names[i]),
                           dtype="f", usecols=0)
         n, x, patches = ax.hist(x=data, bins=bins, label=names[i],
                                 edgecolor='black', density=True)

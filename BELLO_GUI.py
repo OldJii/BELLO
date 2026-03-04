@@ -92,7 +92,7 @@ _STRINGS = {
         'err_elem_empty':   'All element names are required.',
         'err_elem_name':    'Element names cannot be empty.',
         'conv_ok_title':    'Conversion Successful',
-        'conv_ok_msg':      'Output: {}\nCell: {:.3f} × {:.3f} × {:.3f} Å',
+        'conv_ok_msg':      'Output: {}\nCell: {:.3f} × {:.3f} × {:.3f} Å\nFrames: {}',
     },
     'zh': {
         'app_title':        'BELLO — 键元素晶格局域有序度分析',
@@ -137,7 +137,7 @@ _STRINGS = {
         'err_elem_empty':   '所有元素名称均为必填项。',
         'err_elem_name':    '元素名称不能为空。',
         'conv_ok_title':    '转换成功',
-        'conv_ok_msg':      '输出: {}\n晶胞: {:.3f} × {:.3f} × {:.3f} Å',
+        'conv_ok_msg':      '输出: {}\n晶胞: {:.3f} × {:.3f} × {:.3f} Å\n帧数: {}',
     },
 }
 
@@ -390,14 +390,14 @@ class BelloApp(tk.Tk):
             messagebox.showerror(self.t('error'), self.t('err_vasp'))
             return
         try:
-            xyz, cx, cy, cz = vasp_converter.poscar_to_xyz(vp)
+            xyz, cx, cy, cz, nframes = vasp_converter.convert_vasp(vp)
             self.url_var.set(xyz)
             self.cell_x.set(f'{cx:.5f}')
             self.cell_y.set(f'{cy:.5f}')
             self.cell_z.set(f'{cz:.5f}')
             messagebox.showinfo(
                 self.t('conv_ok_title'),
-                self.t('conv_ok_msg').format(xyz, cx, cy, cz))
+                self.t('conv_ok_msg').format(xyz, cx, cy, cz, nframes))
         except Exception as e:
             messagebox.showerror(self.t('error'), str(e))
 
