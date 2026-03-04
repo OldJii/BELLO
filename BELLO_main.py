@@ -1,9 +1,9 @@
 import numpy as np
 import math as mt
-import pandas as pd
 import matplotlib.pyplot as plt
 from scipy.optimize import curve_fit
 from scipy.interpolate import Akima1DInterpolator
+from xyz_reader import read_xyz
 
 
 def BELLO(url, celldmx_raw, celldmy_raw, celldmz_raw, automatic,
@@ -26,10 +26,8 @@ def BELLO(url, celldmx_raw, celldmy_raw, celldmz_raw, automatic,
 	      "|---------Bond Element Lattice Locality Order---------|\n"
 	      "|-----------------------------------------------------|")
 
-	f = pd.read_fwf(url, header=None)
-	f = f.fillna("x")
-	file = np.array(f)
-	Natom = int(f[0][0])
+	file = read_xyz(url)
+	Natom = int(file[0][0])
 	lfile = len(file)
 	celldmx = float(celldmx_raw)
 	celldmy = float(celldmy_raw)
@@ -39,8 +37,8 @@ def BELLO(url, celldmx_raw, celldmy_raw, celldmz_raw, automatic,
 
 	fa = np.empty((0, 4), int)
 	templist = []
-	Nframes = round(len(f) / (Natom + 2))
-	print("Number of frames: ", round(Nframes))
+	Nframes = round(lfile / (Natom + 2))
+	print("Number of frames: ", Nframes)
 
 	def gaus(x, a, x0, sigma):
 		return a * np.exp(-(x - x0) ** 2 / (2 * sigma ** 2))

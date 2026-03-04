@@ -1,7 +1,7 @@
 import numpy as np
 import math as mt
-import pandas as pd
 import matplotlib.pyplot as plt
+from xyz_reader import read_xyz
 
 
 def RDF(url, celldmx_raw, celldmy_raw, celldmz_raw, dr, rmax,
@@ -21,10 +21,8 @@ def RDF(url, celldmx_raw, celldmy_raw, celldmz_raw, dr, rmax,
 	      "|-----------------------------------------------------|\n"
 	      "|----------Radial Pair Distribution Function----------|")
 
-	f = pd.read_fwf(url, header=None)
-	f = f.fillna("x")
-	file = np.array(f)
-	Natom = int(f[0][0])
+	file = read_xyz(url)
+	Natom = int(file[0][0])
 
 	celldmx = float(celldmx_raw)
 	celldmy = float(celldmy_raw)
@@ -41,7 +39,7 @@ def RDF(url, celldmx_raw, celldmy_raw, celldmz_raw, dr, rmax,
 	fa = np.empty((0, 4), int)
 	templist = []
 	intervals = 1 / dr
-	Nframes = round(len(f) / (Natom + 2))
+	Nframes = round(lfile / (Natom + 2))
 	print("Number of frames: ", Nframes)
 
 	for i in range(lfile):

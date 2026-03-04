@@ -9,3 +9,5 @@ Angle_distribution_frame_*.txt
 *.egg-info/
 dist/
 build/
+XDATCAR
+XDATCAR.xyz

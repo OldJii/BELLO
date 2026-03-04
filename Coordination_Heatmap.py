@@ -56,7 +56,11 @@ def coordination_heatmap(*elements_raw):
 	           'Tetrahedral_index', 'Tetrahedral', '5_fold_index', '5_fold',
 	           '6_fold_index', '6_fold']
 	length = column_length(elements, 6)
-	grid = pd.DataFrame(0, index=np.linspace(1, length, length, dtype='i'), columns=columns)
+	idx = np.linspace(1, length, length, dtype='i')
+	grid = pd.DataFrame(0, index=idx, columns=columns)
+	for col in columns:
+		if col.endswith('_index'):
+			grid[col] = grid[col].astype(object)
 	grid = indexer(grid)
 
 	figures = []
@@ -100,7 +104,11 @@ def coordination_heatmap(*elements_raw):
 	figures.append(fig_global)
 
 	for x in elements:
-		grid = indexer(pd.DataFrame(0, index=np.linspace(1, length, length, dtype='i'), columns=columns))
+		grid = pd.DataFrame(0, index=idx, columns=columns)
+		for col in columns:
+			if col.endswith('_index'):
+				grid[col] = grid[col].astype(object)
+		grid = indexer(grid)
 		for i in range(0, len(file)):
 			if file[i, 0] == '3-FOLD' and file[i + 1, 0] == x:
 				temp_element = [file[i + 2, 0], file[i + 3, 0], file[i + 4, 0]]

@@ -118,6 +118,7 @@ BELLO/
 ├── Angle_Distribution_Function.py        # Angle sorting and plotting
 ├── Coordination_Heatmap.py               # Coordination heatmap generation
 ├── vasp_converter.py                     # VASP POSCAR/CONTCAR/XDATCAR → XYZ
+├── xyz_reader.py                         # Robust XYZ file parser
 ├── test.xyz                              # Sample trajectory (270 Ge atoms)
 ├── requirements.txt                      # Python dependencies
 ├── setup.sh                              # macOS / Linux setup script
