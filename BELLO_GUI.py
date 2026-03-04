@@ -358,9 +358,7 @@ class BelloApp(tk.Tk):
                    command=self._browse_xyz).pack(side='right', padx=(6, 0))
 
     def _browse_xyz(self):
-        p = filedialog.askopenfilename(
-            title='XYZ',
-            filetypes=[('XYZ', '*.xyz'), ('All files', '*')])
+        p = filedialog.askopenfilename(title='XYZ')
         if p:
             self.url_var.set(p)
 
@@ -378,9 +376,7 @@ class BelloApp(tk.Tk):
                    command=self._convert_vasp).pack(fill='x', pady=(6, 0))
 
     def _browse_vasp(self):
-        p = filedialog.askopenfilename(
-            title='VASP',
-            filetypes=[('All files', '*'), ('VASP', '*.vasp')])
+        p = filedialog.askopenfilename(title='VASP')
         if p:
             self.vasp_var.set(p)
 
