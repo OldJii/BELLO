@@ -380,8 +380,7 @@ class BelloApp(tk.Tk):
     def _browse_vasp(self):
         p = filedialog.askopenfilename(
             title='VASP',
-            filetypes=[('VASP', '*.vasp'), ('POSCAR', 'POSCAR*'),
-                       ('CONTCAR', 'CONTCAR*'), ('All', '*.*')])
+            filetypes=[('All files', '*.*'), ('VASP', '*.vasp')])
         if p:
             self.vasp_var.set(p)
 
