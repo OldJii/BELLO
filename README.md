@@ -13,6 +13,8 @@ BELLO (Bond Element Lattice Locality Order) is a post-processing toolkit for cha
 - **VASP → XYZ converter** — reads POSCAR / CONTCAR / XDATCAR files and converts them to XYZ, auto-detecting file type and auto-filling cell dimensions; XDATCAR multi-frame trajectories are fully supported
 - **Embedded plots** — all figures render inside the GUI with full Matplotlib navigation (zoom, pan, save)
 - **Chinese / English UI** — one-click language toggle in the top-right corner
+- **Large-trajectory acceleration controls** — `Frame stride` and `Max frames` let you sample long trajectories for faster turnaround
+- **Safe run lock** — repeated clicks on **Calculate** while a task is running are ignored to prevent concurrent-run conflicts
 
 ## Quick Start
 
@@ -70,17 +72,22 @@ python BELLO_GUI.py
 1. Click **Browse** and select an XYZ trajectory file.
 2. Enter the unit-cell dimensions (X, Y, Z in Angstroms).
 3. Set the inter-atomic distance **Threshold** and **Tolerance**, or check **Automatic threshold** to let the program determine them from the RDF first peak.
-4. Select **BELLO Analysis** and click **Calculate**.
-5. When finished, the right panel shows:
+4. (Optional for speed) Set **Frame stride** and **Max frames** in the Parameters card:
+   - `Frame stride = 1` means use every frame
+   - `Frame stride = 10` means use every 10th frame
+   - `Max frames = 0` means no limit
+5. Select **BELLO Analysis** and click **Calculate**.
+6. When finished, the right panel shows:
    - **Plot 1** — Order-parameter *q* distribution (smoothed, per fold type)
    - **Plot 2** — Local-order population vs. frame number
-6. Output files are written to the working directory (`output-*.txt`, `out2.pdb`, etc.).
+7. Output files are written to the working directory (`output-*.txt`, `out2.pdb`, etc.).
 
 ### 2. Radial Distribution Function (RDF)
 
 1. Load an XYZ file and fill in cell dimensions as above.
 2. Select **RDF** — a dialog asks for maximum radius, step size, and the two element symbols.
-3. Click **Calculate**. The partial g(r) curve appears in the plot panel; data is saved to `RDF.txt`.
+3. (Optional for speed) Reuse **Frame stride** and **Max frames** settings from the Parameters card.
+4. Click **Calculate**. The partial g(r) curve appears in the plot panel; data is saved to `RDF.txt`.
 
 ### 3. Angle Distribution
 

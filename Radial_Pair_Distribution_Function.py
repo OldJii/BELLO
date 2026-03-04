@@ -5,7 +5,8 @@ from xyz_reader import read_xyz
 
 
 def RDF(url, celldmx_raw, celldmy_raw, celldmz_raw, dr, rmax,
-        first_element, second_element, progress_callback=None):
+        first_element, second_element, progress_callback=None,
+        frame_stride=1, max_frames=0):
 	"""Compute partial radial pair distribution function g(r).
 
 	Returns:
@@ -21,7 +22,17 @@ def RDF(url, celldmx_raw, celldmy_raw, celldmz_raw, dr, rmax,
 	      "|-----------------------------------------------------|\n"
 	      "|----------Radial Pair Distribution Function----------|")
 
-	file = read_xyz(url)
+	frame_stride = int(frame_stride)
+	max_frames = int(max_frames)
+	if frame_stride < 1:
+		raise ValueError(f"frame_stride must be >= 1, got {frame_stride}")
+	if max_frames < 0:
+		raise ValueError(f"max_frames must be >= 0, got {max_frames}")
+
+	max_frames_arg = None if max_frames == 0 else max_frames
+	file = read_xyz(url, frame_stride=frame_stride, max_frames=max_frames_arg)
+	if len(file) == 0:
+		raise ValueError("No valid frames were parsed from XYZ file.")
 	Natom = int(file[0][0])
 
 	celldmx = float(celldmx_raw)
@@ -36,22 +47,29 @@ def RDF(url, celldmx_raw, celldmy_raw, celldmz_raw, dr, rmax,
 	lfile = len(file)
 	print("File length is: ", lfile)
 
-	fa = np.empty((0, 4), int)
-	templist = []
-	intervals = 1 / dr
-	Nframes = round(lfile / (Natom + 2))
+	Nframes = lfile // (Natom + 2)
 	print("Number of frames: ", Nframes)
+	if Nframes <= 0:
+		raise ValueError("No frames available after parsing/sampling.")
+
+	fa_rows = []
 
 	for i in range(lfile):
 		if file[i, 1] != 'x':
-			if file[i, 1] > celldmx or file[i, 1] < 0:
-				file[i, 1] = file[i, 1] % celldmx
-			if file[i, 2] > celldmy or file[i, 2] < 0:
-				file[i, 2] = file[i, 2] % celldmy
-			if file[i, 3] > celldmz or file[i, 3] < 0:
-				file[i, 3] = file[i, 3] % celldmz
-			fa = np.vstack((fa, file[i]))
+			x = file[i, 1]
+			y = file[i, 2]
+			z = file[i, 3]
+			if x > celldmx or x < 0:
+				x = x % celldmx
+			if y > celldmy or y < 0:
+				y = y % celldmy
+			if z > celldmz or z < 0:
+				z = z % celldmz
+			fa_rows.append([file[i, 0], x, y, z])
+	fa = np.array(fa_rows, dtype=object)
 	print("Boundary Condition is done!\nCalculating Radial Pair Distribution Function:")
+	if len(fa) == 0:
+		raise ValueError("No atom coordinates found in XYZ data.")
 
 	def distance(a, b):
 		dx = abs(a[0] - b[0])
@@ -66,6 +84,10 @@ def RDF(url, celldmx_raw, celldmy_raw, celldmz_raw, dr, rmax,
 	B = celldmy
 	C = celldmz
 	totalRDF = []
+	n = int(mt.ceil(rmax / dr))
+	r = np.around(np.arange(0 + dr, rmax + dr, dr), decimals=3)
+	vol = [(4.0 / 3.0) * mt.pi * (r[i])**3 for i in range(n)]
+	vol.insert(0, 0)
 
 	for N in range(0, len(fa), Natom):
 		_progress('Frames', N, len(fa))
@@ -88,28 +110,18 @@ def RDF(url, celldmx_raw, celldmy_raw, celldmz_raw, dr, rmax,
 						a = fo[c, 1:4]
 						b = fo[b1, 1:4]
 						db1 = distance(a, b)
-						templist.append(db1)
 						if (db1 <= rmax) and (db1 <= celldmx / 2) and (db1 <= celldmy / 2) and (db1 <= celldmz / 2):
 							rlist.append(db1)
 
 		if not rlist:
 			continue
 
-		rmax_frame = max(rlist)
-		nvals = len(rlist)
-		n = int(mt.ceil(rmax_frame / dr))
 		rdf_hist = np.zeros(n)
-		rr = np.arange(0 + dr, rmax_frame + dr, dr)
-		r = np.around(rr, decimals=3)
-		vol = [(4.0 / 3.0) * mt.pi * (r[i])**3 for i in range(n)]
-		vol.insert(0, 0)
 		density = natm2 / (celldmx * celldmy * celldmz)
-
-		for i in range(n):
-			for j in range(nvals):
-				test = round(rlist[j] * intervals) / intervals
-				if test == r[i]:
-					rdf_hist[i] += 1
+		if density == 0 or natm1 == 0:
+			continue
+		hist_counts, _ = np.histogram(rlist, bins=np.arange(0, rmax + dr, dr))
+		rdf_hist[:len(hist_counts)] = hist_counts.astype(float)
 
 		for i in range(n):
 			rdf_hist[i] /= natm1
@@ -117,7 +129,10 @@ def RDF(url, celldmx_raw, celldmy_raw, celldmz_raw, dr, rmax,
 			rdf_hist[i] /= vol[i] - vol[i - 1]
 		totalRDF.append(rdf_hist)
 
-	rdf = sum(totalRDF) / Nframes
+	if not totalRDF:
+		raise ValueError(f"No RDF pairs found for element pair {fat}-{sat}.")
+
+	rdf = np.mean(np.array(totalRDF), axis=0)
 	finalfile = np.column_stack((r, rdf))
 	np.savetxt('RDF.txt', finalfile, delimiter=' ', fmt="%s")
 

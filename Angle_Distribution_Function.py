@@ -10,9 +10,11 @@ import scipy.stats as stats
 
 def folder_overwrite(sorted_folder):
     if os.path.exists(sorted_folder):
-        os.chmod(sorted_folder, stat.S_IWRITE)
-        shutil.rmtree(sorted_folder)
-    os.mkdir(sorted_folder)
+        def _remove_readonly(func, path, _exc_info):
+            os.chmod(path, stat.S_IRUSR | stat.S_IWUSR | stat.S_IXUSR)
+            func(path)
+        shutil.rmtree(sorted_folder, onerror=_remove_readonly)
+    os.makedirs(sorted_folder, exist_ok=True)
 
 
 def sorter(elements):
@@ -22,8 +24,8 @@ def sorter(elements):
         List of matplotlib Figure objects.
     """
     file = np.loadtxt('output-angle-distribution.txt', delimiter=' ',
-                       dtype="f,U8", usecols=(0, 1))
-    length = len(file)
+                       dtype=str, usecols=(0, 1), ndmin=2)
+    length = file.shape[0]
 
     sorted_folder = pathlib.Path(os.getcwd(), 'Sorted_angles')
     folder_overwrite(sorted_folder)
@@ -73,6 +75,10 @@ def sorter(elements):
 
         data = np.loadtxt(str(sorted_folder / file_names[i]),
                           dtype="f", usecols=0)
+        data = np.atleast_1d(data).astype(float)
+        if data.size == 0:
+            plt.close(fig)
+            continue
         n, x, patches = ax.hist(x=data, bins=bins, label=names[i],
                                 edgecolor='black', density=True)
         cm = plt.colormaps['viridis']
@@ -83,11 +89,14 @@ def sorter(elements):
             col = np.zeros_like(n)
         for c_val, p in zip(col, patches):
             plt.setp(p, 'facecolor', cm(c_val))
-        density = stats.gaussian_kde(data)
-
         fontsize = 14
         ax.tick_params(axis='both', labelsize=fontsize)
-        ax.plot(x, density(x), label=('Fit %s' % names[i]))
+        if data.size > 1:
+            density = stats.gaussian_kde(data)
+            ax.plot(x, density(x), label=('Fit %s' % names[i]))
+        else:
+            ax.axvline(float(data[0]), linestyle='--', linewidth=2,
+                       label=('Single sample %s' % names[i]))
         plt.legend()
         plt.tight_layout()
         figures.append(fig)

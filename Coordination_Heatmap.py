@@ -12,7 +12,15 @@ def coordination_heatmap(*elements_raw):
 	Returns:
 		List of matplotlib Figure objects.
 	"""
-	file = np.loadtxt('output-human-readable-coords.txt', dtype='str', usecols=(0, 1))
+	rows = []
+	with open('output-human-readable-coords.txt', 'r') as fh:
+		for line in fh:
+			parts = line.split()
+			if len(parts) >= 2:
+				rows.append((parts[0], parts[1]))
+	if not rows:
+		raise ValueError("output-human-readable-coords.txt is empty or invalid.")
+	file = np.array(rows, dtype='str')
 	Nframe = int(file[0, 1])
 
 	def merger(input_list):
@@ -55,12 +63,14 @@ def coordination_heatmap(*elements_raw):
 	columns = ['3_fold_index', '3_fold', '4_fold_index', '4_fold',
 	           'Tetrahedral_index', 'Tetrahedral', '5_fold_index', '5_fold',
 	           '6_fold_index', '6_fold']
+	index_cols = [c for c in columns if c.endswith('_index')]
+	count_cols = [c for c in columns if not c.endswith('_index')]
 	length = column_length(elements, 6)
 	idx = np.linspace(1, length, length, dtype='i')
-	grid = pd.DataFrame(0, index=idx, columns=columns)
-	for col in columns:
-		if col.endswith('_index'):
-			grid[col] = grid[col].astype(object)
+	grid = pd.DataFrame(0.0, index=idx, columns=count_cols)
+	for col in index_cols:
+		grid[col] = ''
+	grid = grid.reindex(columns=columns)
 	grid = indexer(grid)
 
 	figures = []
@@ -104,10 +114,10 @@ def coordination_heatmap(*elements_raw):
 	figures.append(fig_global)
 
 	for x in elements:
-		grid = pd.DataFrame(0, index=idx, columns=columns)
-		for col in columns:
-			if col.endswith('_index'):
-				grid[col] = grid[col].astype(object)
+		grid = pd.DataFrame(0.0, index=idx, columns=count_cols)
+		for col in index_cols:
+			grid[col] = ''
+		grid = grid.reindex(columns=columns)
 		grid = indexer(grid)
 		for i in range(0, len(file)):
 			if file[i, 0] == '3-FOLD' and file[i + 1, 0] == x:

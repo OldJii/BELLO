@@ -1,13 +1,15 @@
 import numpy as np
 import math as mt
 import matplotlib.pyplot as plt
-from scipy.optimize import curve_fit
+import warnings
+from scipy.optimize import curve_fit, OptimizeWarning
 from scipy.interpolate import Akima1DInterpolator
 from xyz_reader import read_xyz
 
 
 def BELLO(url, celldmx_raw, celldmy_raw, celldmz_raw, automatic,
-          trhld_raw, tlrnc_raw, angle_condition, progress_callback=None):
+          trhld_raw, tlrnc_raw, angle_condition, progress_callback=None,
+          frame_stride=1, max_frames=0):
 	"""Run BELLO local-order analysis.
 
 	Args:
@@ -26,7 +28,17 @@ def BELLO(url, celldmx_raw, celldmy_raw, celldmz_raw, automatic,
 	      "|---------Bond Element Lattice Locality Order---------|\n"
 	      "|-----------------------------------------------------|")
 
-	file = read_xyz(url)
+	frame_stride = int(frame_stride)
+	max_frames = int(max_frames)
+	if frame_stride < 1:
+		raise ValueError(f"frame_stride must be >= 1, got {frame_stride}")
+	if max_frames < 0:
+		raise ValueError(f"max_frames must be >= 0, got {max_frames}")
+
+	max_frames_arg = None if max_frames == 0 else max_frames
+	file = read_xyz(url, frame_stride=frame_stride, max_frames=max_frames_arg)
+	if len(file) == 0:
+		raise ValueError("No valid frames were parsed from XYZ file.")
 	Natom = int(file[0][0])
 	lfile = len(file)
 	celldmx = float(celldmx_raw)
@@ -35,10 +47,12 @@ def BELLO(url, celldmx_raw, celldmy_raw, celldmz_raw, automatic,
 
 	print("File length is: ", lfile)
 
-	fa = np.empty((0, 4), int)
-	templist = []
-	Nframes = round(lfile / (Natom + 2))
+	Nframes = lfile // (Natom + 2)
 	print("Number of frames: ", Nframes)
+	if Nframes <= 0:
+		raise ValueError("No frames available after parsing/sampling.")
+
+	fa_rows = []
 
 	def gaus(x, a, x0, sigma):
 		return a * np.exp(-(x - x0) ** 2 / (2 * sigma ** 2))
@@ -46,19 +60,22 @@ def BELLO(url, celldmx_raw, celldmy_raw, celldmz_raw, automatic,
 	for i in range(lfile):
 		_progress('Boundary condition', i, lfile)
 		if file[i, 1] != 'x':
-			if file[i, 1] > celldmx or file[i, 1] < 0:
-				file[i, 1] = file[i, 1] % celldmx
-			if file[i, 2] > celldmy or file[i, 2] < 0:
-				file[i, 2] = file[i, 2] % celldmy
-			if file[i, 3] > celldmz or file[i, 3] < 0:
-				file[i, 3] = file[i, 3] % celldmz
-			fa = np.vstack((fa, file[i]))
+			x = file[i, 1]
+			y = file[i, 2]
+			z = file[i, 3]
+			if x > celldmx or x < 0:
+				x = x % celldmx
+			if y > celldmy or y < 0:
+				y = y % celldmy
+			if z > celldmz or z < 0:
+				z = z % celldmz
+			fa_rows.append([file[i, 0], x, y, z])
+	fa = np.array(fa_rows, dtype=object)
 	print("Boundary Condition is done!")
+	if len(fa) == 0:
+		raise ValueError("No atom coordinates found in XYZ data.")
 
-	if round(len(fa) - Natom) == 0:
-		max_val = 1
-	else:
-		max_val = round(len(fa))
+	max_val = max(1, len(fa))
 
 	def distance(a, b):
 		dx = abs(a[0] - b[0])
@@ -93,9 +110,11 @@ def BELLO(url, celldmx_raw, celldmy_raw, celldmz_raw, automatic,
 					a = fo[c, 1:4]
 					b = fo[b1, 1:4]
 					db1 = distance(a, b)
-					templist.append(db1)
 					if (db1 <= rmax) and (db1 <= celldmx / 2) and (db1 <= celldmy / 2) and (db1 <= celldmz / 2):
 						rlist.append(db1)
+
+			if not rlist:
+				continue
 
 			rmax = max(rlist)
 			nvals = len(rlist)
@@ -132,7 +151,9 @@ def BELLO(url, celldmx_raw, celldmy_raw, celldmz_raw, automatic,
 			mean = 3
 			sigma = sum(gy * (gx - mean)**2) / x
 
-			popt, pcov = curve_fit(gaus, gx, gy, p0=[1, mean, sigma])
+			with warnings.catch_warnings():
+				warnings.simplefilter("ignore", OptimizeWarning)
+				popt, pcov = curve_fit(gaus, gx, gy, p0=[1, mean, sigma])
 			print('Peak value: ', popt[0])
 			print('Gaussian peak location: ', popt[1])
 			print('Sigma: ', popt[2])
@@ -152,6 +173,7 @@ def BELLO(url, celldmx_raw, celldmy_raw, celldmz_raw, automatic,
 			else:
 				tlrnc = popt[2] * 0.7
 			return trhld, tlrnc
+		raise ValueError("Automatic threshold failed: no valid RDF peak found.")
 
 	if automatic:
 		trhld, tlrnc = automatic_rdf(fa, Natom)
