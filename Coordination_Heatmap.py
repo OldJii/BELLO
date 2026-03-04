@@ -52,6 +52,37 @@ def coordination_heatmap(*elements_raw):
 		grid.loc[:column_length(elements, 6), '6_fold_index'] = fold6_index
 		return grid
 
+	def heatmap_params(num_rows):
+		"""Choose a readable figure size/font based on combination count."""
+		height = max(6.0, min(26.0, 2.5 + 0.28 * float(num_rows)))
+		if num_rows > 60:
+			annot_size = 5
+		elif num_rows > 35:
+			annot_size = 6
+		elif num_rows > 20:
+			annot_size = 7
+		else:
+			annot_size = 8
+		return (10.0, height), annot_size
+
+	def draw_heatmap(data_grid, title):
+		fig_size, annot_size = heatmap_params(len(data_grid.index))
+		fig, ax = plt.subplots(figsize=fig_size)
+		sns.heatmap(
+			data_grid.loc[:, ('3_fold', '4_fold', 'Tetrahedral', '5_fold', '6_fold')],
+			annot=data_grid.loc[:, ('3_fold_index', '4_fold_index', 'Tetrahedral_index', '5_fold_index', '6_fold_index')],
+			linewidths=.5,
+			cmap="viridis",
+			fmt='',
+			square=False,
+			yticklabels=False,
+			annot_kws={'size': annot_size},
+			ax=ax,
+		)
+		ax.set_title(title)
+		fig.tight_layout()
+		return fig
+
 	elements = []
 	for item in elements_raw:
 		if isinstance(item, (list, tuple)):
@@ -105,12 +136,7 @@ def coordination_heatmap(*elements_raw):
 	grid.loc[:, ('3_fold', '4_fold', 'Tetrahedral', '5_fold', '6_fold')] = (
 		grid.loc[:, ('3_fold', '4_fold', 'Tetrahedral', '5_fold', '6_fold')]) / Nframe
 
-	fig_global = plt.figure(figsize=(10, 6))
-	sns.heatmap(grid.loc[:, ('3_fold', '4_fold', 'Tetrahedral', '5_fold', '6_fold')],
-	            annot=grid.loc[:, ('3_fold_index', '4_fold_index', 'Tetrahedral_index', '5_fold_index', '6_fold_index')],
-	            linewidths=.5, cmap="viridis", fmt='', square=False, yticklabels=False)
-	plt.title("Coordination Heatmap (all center atoms)")
-	plt.tight_layout()
+	fig_global = draw_heatmap(grid, "Coordination Heatmap (all center atoms)")
 	figures.append(fig_global)
 
 	for x in elements:
@@ -147,12 +173,7 @@ def coordination_heatmap(*elements_raw):
 						grid.loc[j, '6_fold'] += 1
 		grid.loc[:, ('3_fold', '4_fold', 'Tetrahedral', '5_fold', '6_fold')] = (
 			grid.loc[:, ('3_fold', '4_fold', 'Tetrahedral', '5_fold', '6_fold')]) / Nframe
-		fig_elem = plt.figure(figsize=(10, 6))
-		sns.heatmap(grid.loc[:, ('3_fold', '4_fold', 'Tetrahedral', '5_fold', '6_fold')],
-		            annot=grid.loc[:, ('3_fold_index', '4_fold_index', 'Tetrahedral_index', '5_fold_index', '6_fold_index')],
-		            linewidths=.5, cmap="viridis", fmt='', square=False, yticklabels=False)
-		plt.title("Coordination Heatmap with %s as center atom" % x)
-		plt.tight_layout()
+		fig_elem = draw_heatmap(grid, "Coordination Heatmap with %s as center atom" % x)
 		figures.append(fig_elem)
 
 	return figures

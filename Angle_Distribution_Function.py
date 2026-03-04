@@ -12,7 +12,10 @@ def folder_overwrite(sorted_folder):
     if os.path.exists(sorted_folder):
         def _remove_readonly(func, path, _exc_info):
             os.chmod(path, stat.S_IRUSR | stat.S_IWUSR | stat.S_IXUSR)
-            func(path)
+            if func is os.open:
+                func(path, os.O_RDONLY)
+            else:
+                func(path)
         shutil.rmtree(sorted_folder, onerror=_remove_readonly)
     os.makedirs(sorted_folder, exist_ok=True)
 
@@ -23,6 +26,10 @@ def sorter(elements):
     Returns:
         List of matplotlib Figure objects.
     """
+    # This workflow intentionally returns many figures (one per triplet);
+    # suppress matplotlib's >20-open-figures warning for this use case.
+    plt.rcParams['figure.max_open_warning'] = 0
+
     file = np.loadtxt('output-angle-distribution.txt', delimiter=' ',
                        dtype=str, usecols=(0, 1), ndmin=2)
     length = file.shape[0]
