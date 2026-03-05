@@ -4,6 +4,7 @@ __pycache__/
 output-*.txt
 out2.pdb
 RDF.txt
+RDF_*.txt
 Sorted_angles/
 Angle_distribution_frame_*.txt
 *.egg-info/
@@ -12,3 +13,4 @@ build/
 XDATCAR
 XDATCAR.xyz
 test.xyz
+*.xlsx
