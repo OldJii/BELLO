@@ -4,13 +4,42 @@ import matplotlib.pyplot as plt
 from xyz_reader import read_xyz
 
 
+def find_first_minimum(r, rdf, peak_threshold=0.1):
+	"""Locate the first minimum (first valley after the first peak) in an RDF curve.
+
+	Returns the r-value at the first minimum, or None if not found.
+	The first minimum is defined as the first local minimum after g(r)
+	rises above *peak_threshold* and then descends.
+	"""
+	if len(r) < 3 or len(rdf) < 3:
+		return None
+
+	passed_peak = False
+	peak_val = 0.0
+	for i in range(1, len(rdf)):
+		if rdf[i] > peak_threshold:
+			passed_peak = True
+		if passed_peak and rdf[i] > peak_val:
+			peak_val = rdf[i]
+		if passed_peak and rdf[i] < rdf[i - 1]:
+			if i + 1 < len(rdf) and rdf[i] <= rdf[i + 1]:
+				return float(r[i])
+			elif i + 1 >= len(rdf):
+				return float(r[i])
+	return None
+
+
 def RDF(url, celldmx_raw, celldmy_raw, celldmz_raw, dr, rmax,
         first_element, second_element, progress_callback=None,
         frame_stride=1, max_frames=0):
 	"""Compute partial radial pair distribution function g(r).
 
 	Returns:
-		List containing one matplotlib Figure.
+		Tuple of (figures_list, r_array, rdf_array, first_min_r).
+		- figures_list: list with one matplotlib Figure
+		- r_array: 1-D numpy array of radii
+		- rdf_array: 1-D numpy array of g(r) values
+		- first_min_r: float position of first minimum, or None
 	"""
 	def _progress(stage, cur, total):
 		if progress_callback:
@@ -134,16 +163,21 @@ def RDF(url, celldmx_raw, celldmy_raw, celldmz_raw, dr, rmax,
 
 	rdf = np.mean(np.array(totalRDF), axis=0)
 	finalfile = np.column_stack((r, rdf))
-	np.savetxt('RDF.txt', finalfile, delimiter=' ', fmt="%s")
+	np.savetxt(f'RDF_{fat}-{sat}.txt', finalfile, delimiter=' ', fmt="%s")
+
+	first_min = find_first_minimum(r, rdf)
 
 	fig = plt.figure(facecolor="none", figsize=(6.75, 5))
 	ax = fig.add_subplot(111)
 	fontsize = 14
 	ax.tick_params(axis='both', labelsize=fontsize)
-	plt.plot(r, rdf, label='Radial distribution function', lw=2)
-	plt.xlabel('Radius (Angstroms)', fontsize=fontsize)
-	plt.ylabel('Radial pair distribution function g(r)', fontsize=fontsize)
-	plt.legend()
-	plt.tight_layout()
+	ax.plot(r, rdf, label=f'g(r) {fat}–{sat}', lw=2)
+	if first_min is not None:
+		ax.axvline(first_min, color='#f85149', ls='--', lw=1.5, alpha=0.8,
+		           label=f'1st min = {first_min:.2f} Å')
+	ax.set_xlabel('Radius (Å)', fontsize=fontsize)
+	ax.set_ylabel('g(r)', fontsize=fontsize)
+	ax.legend()
+	fig.tight_layout()
 
-	return [fig]
+	return [fig], r, rdf, first_min

@@ -16,6 +16,8 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
 
+import numpy as np
+
 import BELLO_main
 import Angle_Distribution_Function
 import Radial_Pair_Distribution_Function
@@ -56,6 +58,7 @@ ACCENT  = '#2f81f7'
 ACCENTL = '#58a6ff'
 GREEN   = '#3fb950'
 RED     = '#f85149'
+ORANGE  = '#d29922'
 INPUT   = '#0d1117'
 SEL_BG  = '#1c3557'
 
@@ -83,12 +86,11 @@ plt.rcParams.update({
 
 # ── Cancellation sentinel ─────────────────────────────────────────────────────
 class _Cancelled(Exception):
-    """Raised inside _pcb when the user clicks Stop."""
+    pass
 
 
 # ── Thread-safe NavigationToolbar ─────────────────────────────────────────────
 class _SafeToolbar(NavigationToolbar2Tk):
-    """Silently drops set_message calls that arrive on the wrong thread."""
     def set_message(self, s):
         try:
             super().set_message(s)
@@ -118,10 +120,11 @@ _STRINGS = {
         'sec_calc':         'CALCULATION',
         'mode_bello':       'BELLO',
         'mode_rdf':         'RDF',
-        'mode_angle':       'Angle',
+        'mode_angle':       'ADF',
         'mode_coord':       'Heatmap',
         'btn_calc':         'Run Calculation',
         'btn_stop':         'Stop',
+        'btn_export':       'Export Excel',
         'ready':            'Ready',
         'running':          'Running…',
         'done':             'Done',
@@ -144,6 +147,19 @@ _STRINGS = {
         'err_min':          '{} must be ≥ {}',
         'conv_ok_title':    'Conversion Complete',
         'conv_ok_msg':      'Output: {}\nCell: {:.3f} × {:.3f} × {:.3f} Å\nFrames: {}',
+        'export_ok':        'Exported: {}',
+        'export_no_data':   'No data to export. Run a calculation first.',
+        'sec_axis':         'AXIS RANGE',
+        'x_min':            'X min',
+        'x_max':            'X max',
+        'btn_refresh':      'Refresh Plot',
+        'sec_adf':          'ADF SETTINGS',
+        'cutoff_auto':      'Auto cutoff (from RDF)',
+        'cutoff_manual':    'Manual cutoff',
+        'cutoff_value':     'Cutoff (Å)',
+        'no_rdf_data':      'No RDF data available. Run RDF first to auto-detect cutoff, or use manual cutoff.',
+        'heatmap_warn':     'Heatmap requires BELLO output data.\nPlease run BELLO calculation first.',
+        'adf_no_cutoff':    'Cannot determine cutoff. Run RDF first or enter a manual cutoff value.',
     },
     'zh': {
         'app_title':        'BELLO — 键元素晶格局域有序度分析',
@@ -165,10 +181,11 @@ _STRINGS = {
         'sec_calc':         '计算',
         'mode_bello':       'BELLO',
         'mode_rdf':         'RDF',
-        'mode_angle':       '角分布',
+        'mode_angle':       'ADF',
         'mode_coord':       '热力图',
         'btn_calc':         '开始计算',
         'btn_stop':         '停止计算',
+        'btn_export':       '导出 Excel',
         'ready':            '就绪',
         'running':          '计算中…',
         'done':             '完成',
@@ -191,6 +208,19 @@ _STRINGS = {
         'err_min':          '{} 必须 ≥ {}',
         'conv_ok_title':    '转换成功',
         'conv_ok_msg':      '输出: {}\n晶胞: {:.3f} × {:.3f} × {:.3f} Å\n帧数: {}',
+        'export_ok':        '已导出: {}',
+        'export_no_data':   '没有可导出的数据，请先运行计算。',
+        'sec_axis':         '坐标轴范围',
+        'x_min':            'X 最小值',
+        'x_max':            'X 最大值',
+        'btn_refresh':      '刷新图表',
+        'sec_adf':          'ADF 设置',
+        'cutoff_auto':      '自动截距（来自 RDF）',
+        'cutoff_manual':    '手动截距',
+        'cutoff_value':     '截距 (Å)',
+        'no_rdf_data':      '无 RDF 数据。请先运行 RDF 以自动检测截距，或使用手动截距。',
+        'heatmap_warn':     '热力图需要 BELLO 输出数据。\n请先运行 BELLO 计算。',
+        'adf_no_cutoff':    '无法确定截距。请先运行 RDF 或手动输入截距值。',
     },
 }
 
@@ -211,10 +241,17 @@ class BelloApp(tk.Tk):
         self._prog_stage   = ''
         self._prog_pct     = -1
 
+        # Cached computation results for cross-module linkage
+        self._rdf_cache = {}       # {(e1,e2): {'r': array, 'rdf': array, 'first_min': float|None}}
+        self._last_figures = []    # last displayed figures
+        self._last_calc_type = ''  # 'BELLO', 'RDF', 'ANGLE', 'COORD'
+        self._last_calc_label = '' # e.g. 'Ge-Se' for export naming
+        self._last_export_data = {}  # {'type': ..., 'data': {name: (x_arr, y_arr)}}
+
         self.title(self._t['app_title'])
         self.configure(bg=BG)
         self.minsize(1020, 680)
-        self.geometry('1240x800')
+        self.geometry('1280x820')
 
         if IS_MAC:
             self.createcommand('tk::mac::Quit', self.destroy)
@@ -263,7 +300,6 @@ class BelloApp(tk.Tk):
                   background=[('active', PANEL), ('!active', PANEL)],
                   foreground=[('disabled', FG3)])
 
-        # Primary  (blue filled)
         s.configure('Primary.TButton',
                     background=ACCENT, foreground='#ffffff',
                     font=F_MB, padding=(0, 10), relief='flat', borderwidth=0)
@@ -271,7 +307,6 @@ class BelloApp(tk.Tk):
               background=[('active', ACCENTL), ('disabled', RAISED)],
               foreground=[('disabled', FG3)])
 
-        # Danger  (red filled – stop button)
         s.configure('Danger.TButton',
                     background=RED, foreground='#ffffff',
                     font=F_MB, padding=(0, 10), relief='flat', borderwidth=0)
@@ -279,7 +314,6 @@ class BelloApp(tk.Tk):
               background=[('active', '#ff6b6b'), ('disabled', RAISED)],
               foreground=[('disabled', FG3)])
 
-        # Secondary  (subtle)
         s.configure('Secondary.TButton',
                     background=RAISED, foreground=FG,
                     font=F_S, padding=(8, 5), relief='flat', borderwidth=1)
@@ -287,13 +321,18 @@ class BelloApp(tk.Tk):
               background=[('active', BORDER), ('disabled', PANEL)],
               foreground=[('disabled', FG3)])
 
-        # Lang toggle
+        s.configure('Export.TButton',
+                    background='#238636', foreground='#ffffff',
+                    font=F_S, padding=(8, 5), relief='flat', borderwidth=0)
+        s.map('Export.TButton',
+              background=[('active', '#2ea043'), ('disabled', PANEL)],
+              foreground=[('disabled', FG3)])
+
         s.configure('Lang.TButton',
                     background=SURFACE, foreground=ACCENTL,
                     font=F_XS, padding=(9, 4), relief='flat')
         s.map('Lang.TButton', background=[('active', PANEL)])
 
-        # Notebook
         s.configure('TNotebook',
                     background=BG, borderwidth=0, tabmargins=(0, 0, 0, 0))
         s.configure('TNotebook.Tab',
@@ -303,18 +342,15 @@ class BelloApp(tk.Tk):
               background=[('selected', RAISED)],
               foreground=[('selected', FG)])
 
-        # Thin progress bar
         s.configure('Thin.Horizontal.TProgressbar',
                     troughcolor=RAISED, background=ACCENT,
                     borderwidth=0, thickness=2)
 
-        # Scrollbar
         s.configure('TScrollbar',
                     background=RAISED, troughcolor=PANEL,
                     borderwidth=0, arrowsize=10)
         s.map('TScrollbar', background=[('active', BORDER)])
 
-        # Combobox
         s.configure('TCombobox',
                     fieldbackground=INPUT, foreground=FG,
                     background=RAISED, selectbackground=SEL_BG,
@@ -369,11 +405,11 @@ class BelloApp(tk.Tk):
 
     # ── left control panel ────────────────────────────────────────────────────
     def _build_panel(self, parent):
-        outer = tk.Frame(parent, bg=PANEL, width=316)
+        outer = tk.Frame(parent, bg=PANEL, width=330)
         outer.pack(side='left', fill='y')
         outer.pack_propagate(False)
 
-        canvas = tk.Canvas(outer, bg=PANEL, highlightthickness=0, width=314)
+        canvas = tk.Canvas(outer, bg=PANEL, highlightthickness=0, width=328)
         sb = ttk.Scrollbar(outer, orient='vertical', command=canvas.yview)
         self._scroll_inner = tk.Frame(canvas, bg=PANEL)
 
@@ -393,6 +429,8 @@ class BelloApp(tk.Tk):
         self._build_vasp_section(self._scroll_inner)
         self._build_params_section(self._scroll_inner)
         self._build_cell_section(self._scroll_inner)
+        self._build_adf_section(self._scroll_inner)
+        self._build_axis_section(self._scroll_inner)
         self._build_calc_section(self._scroll_inner)
 
     def _bind_scroll(self, canvas):
@@ -531,11 +569,81 @@ class BelloApp(tk.Tk):
         self.cell_y = self._input_row(body, 'Y', '20.00000')
         self.cell_z = self._input_row(body, 'Z', '20.00000')
 
+    # ── ADF SETTINGS section ──────────────────────────────────────────────────
+    def _build_adf_section(self, parent):
+        body = self._section(parent, 'sec_adf')
+
+        self.cutoff_mode = tk.StringVar(value='auto')
+        ttk.Radiobutton(body, text=self.t('cutoff_auto'),
+                        variable=self.cutoff_mode, value='auto',
+                        command=self._toggle_cutoff_mode).pack(anchor='w')
+        ttk.Radiobutton(body, text=self.t('cutoff_manual'),
+                        variable=self.cutoff_mode, value='manual',
+                        command=self._toggle_cutoff_mode).pack(anchor='w', pady=(2, 6))
+        self.cutoff_var = self._input_row(body, self.t('cutoff_value'), '', width=9)
+
+        self._cutoff_info = tk.Label(body, text='', bg=PANEL, fg=FG3, font=F_XS,
+                                     wraplength=260, justify='left')
+        self._cutoff_info.pack(anchor='w', pady=(4, 0))
+        self._update_cutoff_info()
+
+    def _toggle_cutoff_mode(self):
+        is_manual = (self.cutoff_mode.get() == 'manual')
+        for w in self._all_widgets():
+            if isinstance(w, ttk.Entry):
+                try:
+                    if str(w.cget('textvariable')) == str(self.cutoff_var):
+                        w.configure(state='normal' if is_manual else 'disabled')
+                except Exception:
+                    pass
+        self._update_cutoff_info()
+
+    def _update_cutoff_info(self):
+        if not hasattr(self, '_cutoff_info'):
+            return
+        if self.cutoff_mode.get() == 'auto':
+            if self._rdf_cache:
+                lines = []
+                for (e1, e2), data in self._rdf_cache.items():
+                    fm = data.get('first_min')
+                    lines.append(f'{e1}–{e2}: {fm:.2f} Å' if fm else f'{e1}–{e2}: N/A')
+                self._cutoff_info.config(text='RDF cutoffs:\n' + '\n'.join(lines), fg=GREEN)
+            else:
+                self._cutoff_info.config(text=self.t('no_rdf_data'), fg=ORANGE)
+        else:
+            self._cutoff_info.config(text='', fg=FG3)
+
+    # ── AXIS RANGE section ────────────────────────────────────────────────────
+    def _build_axis_section(self, parent):
+        body = self._section(parent, 'sec_axis')
+        self.xmin_var = self._input_row(body, self.t('x_min'), '', width=7)
+        self.xmax_var = self._input_row(body, self.t('x_max'), '', width=7)
+        btn_row = tk.Frame(body, bg=PANEL)
+        btn_row.pack(fill='x', pady=(6, 0))
+        self.btn_refresh = ttk.Button(btn_row, text=self.t('btn_refresh'),
+                                      style='Secondary.TButton',
+                                      command=self._refresh_axis)
+        self.btn_refresh.pack(fill='x')
+
+    def _refresh_axis(self):
+        if not self._last_figures:
+            return
+        xmin_s = self.xmin_var.get().strip()
+        xmax_s = self.xmax_var.get().strip()
+        xmin = float(xmin_s) if xmin_s else None
+        xmax = float(xmax_s) if xmax_s else None
+        for fig in self._last_figures:
+            for ax in fig.get_axes():
+                if xmin is not None or xmax is not None:
+                    cur = ax.get_xlim()
+                    ax.set_xlim(xmin if xmin is not None else cur[0],
+                                xmax if xmax is not None else cur[1])
+        self._show_figures(self._last_figures, keep_cache=True)
+
     # ── CALCULATION section ────────────────────────────────────────────────────
     def _build_calc_section(self, parent):
         body = self._section(parent, 'sec_calc')
 
-        # Segmented mode selector
         self.calc_mode = tk.StringVar(value='BELLO')
         mode_defs = [
             ('mode_bello', 'BELLO'),
@@ -571,7 +679,7 @@ class BelloApp(tk.Tk):
 
         tk.Frame(seg_outer, bg=BORDER, height=1).pack(fill='x')
 
-        # Run + Stop buttons (same slot, swap via pack/forget)
+        # Run + Stop + Export buttons
         self._btn_slot = tk.Frame(body, bg=PANEL)
         self._btn_slot.pack(fill='x')
 
@@ -583,12 +691,15 @@ class BelloApp(tk.Tk):
         self.btn_stop = ttk.Button(self._btn_slot, text=self.t('btn_stop'),
                                    style='Danger.TButton',
                                    command=self._stop_calculation)
-        # btn_stop hidden initially
+
+        self.btn_export = ttk.Button(body, text=self.t('btn_export'),
+                                     style='Export.TButton',
+                                     command=self._export_excel)
+        self.btn_export.pack(fill='x', pady=(8, 0))
 
     def _select_mode(self, val):
         if self._busy:
             return
-        old = self.calc_mode.get()
         self.calc_mode.set(val)
         for v, lbl in self._mode_btns.items():
             lbl.config(bg=SEL_BG if v == val else RAISED,
@@ -604,13 +715,18 @@ class BelloApp(tk.Tk):
         tk.Label(ph, text=self.t('plot_hint'),
                  bg=RAISED, fg=FG2, font=F_L).place(relx=0.5, rely=0.5, anchor='center')
 
-    def _show_figures(self, figs):
+    def _show_figures(self, figs, keep_cache=False):
         for tab_id in self.plot_notebook.tabs():
             self.plot_notebook.forget(tab_id)
         for idx, fig in enumerate(figs):
             frame = tk.Frame(self.plot_notebook, bg=RAISED)
-            self.plot_notebook.add(frame,
-                                   text=f'  {self.t("plot_tab")} {idx + 1}  ')
+            title = f'  {self.t("plot_tab")} {idx + 1}  '
+            for ax in fig.get_axes():
+                t = ax.get_title()
+                if t:
+                    title = f'  {t[:30]}  '
+                    break
+            self.plot_notebook.add(frame, text=title)
             canvas = FigureCanvasTkAgg(fig, master=frame)
             canvas.draw()
             tb_frame = tk.Frame(frame, bg=RAISED)
@@ -626,6 +742,8 @@ class BelloApp(tk.Tk):
             canvas.get_tk_widget().pack(side='top', fill='both', expand=True)
         if figs:
             self.plot_notebook.select(0)
+        if not keep_cache:
+            self._last_figures = list(figs)
 
     # ── Status bar ────────────────────────────────────────────────────────────
     def _build_statusbar(self):
@@ -672,7 +790,6 @@ class BelloApp(tk.Tk):
     # ── Element auto-detection ────────────────────────────────────────────────
     @staticmethod
     def _detect_elements(xyz_path):
-        """Read first XYZ frame and return sorted unique element symbols."""
         elements = set()
         with open(xyz_path, 'r') as f:
             lines = f.readlines()
@@ -684,12 +801,12 @@ class BelloApp(tk.Tk):
                 continue
             try:
                 n = int(line)
-                i += 2          # skip comment line
+                i += 2
                 for j in range(min(n, len(lines) - i)):
                     parts = lines[i + j].split()
                     if parts:
                         elements.add(parts[0])
-                break           # first frame is enough
+                break
             except ValueError:
                 i += 1
         return sorted(elements)
@@ -706,6 +823,8 @@ class BelloApp(tk.Tk):
             getattr(self, 'btn_convert_vasp', None),
             getattr(self, 'chk_auto',         None),
             getattr(self, 'chk_sep_angle',    None),
+            getattr(self, 'btn_export',       None),
+            getattr(self, 'btn_refresh',      None),
         ]:
             if w is not None and w.winfo_exists():
                 try:
@@ -713,7 +832,6 @@ class BelloApp(tk.Tk):
                 except tk.TclError:
                     pass
 
-        # Swap Run ↔ Stop buttons
         if hasattr(self, 'btn_calc') and self.btn_calc.winfo_exists():
             if busy:
                 self.btn_calc.pack_forget()
@@ -722,7 +840,6 @@ class BelloApp(tk.Tk):
                 self.btn_stop.pack_forget()
                 self.btn_calc.pack(fill='x')
 
-        # Dim mode buttons when busy
         cur = self.calc_mode.get()
         for val, lbl in getattr(self, '_mode_btns', {}).items():
             if lbl.winfo_exists():
@@ -736,6 +853,7 @@ class BelloApp(tk.Tk):
 
         if not busy:
             self._toggle_auto()
+            self._toggle_cutoff_mode()
 
     # ── Stop calculation ──────────────────────────────────────────────────────
     def _stop_calculation(self):
@@ -802,7 +920,6 @@ class BelloApp(tk.Tk):
         messagebox.showerror(self.t('error'), str(exc))
 
     def _pcb(self, stage, cur, total):
-        """Progress callback — also the cancellation check point."""
         if self._cancel_event.is_set():
             raise _Cancelled()
         pct = int(cur / max(total, 1) * 100)
@@ -829,6 +946,8 @@ class BelloApp(tk.Tk):
         auto = self.auto_var.get()
         trh  = self.trh_var.get() if not auto else '2'
         tlr  = self.tlr_var.get() if not auto else '1'
+        self._last_calc_type = 'BELLO'
+        self._last_calc_label = 'BELLO'
         self._threaded(BELLO_main.BELLO,
                        (url, cx, cy, cz, auto, trh, tlr,
                         self.sep_ang_var.get(), self._pcb, fs, mf))
@@ -855,56 +974,201 @@ class BelloApp(tk.Tk):
         if dlg.result is None:
             return
         dr, rmax = dlg.result
+        self._last_calc_type = 'RDF'
+        self._last_calc_label = 'all'
         self._threaded(self._do_rdf_pairs,
                        (url, cx, cy, cz, dr, rmax, elements, fs, mf))
 
     def _do_rdf_pairs(self, url, cx, cy, cz, dr, rmax, elements, fs, mf):
-        """Compute RDF for every combination_with_replacement pair."""
         pairs = list(combinations_with_replacement(elements, 2))
         all_figs = []
+        export_data = {}
         for idx, (e1, e2) in enumerate(pairs):
             def pair_pcb(stage, cur, total, _e1=e1, _e2=e2):
                 self._pcb(f'{_e1}–{_e2}  {stage}', cur, total)
             try:
-                figs = Radial_Pair_Distribution_Function.RDF(
+                figs, r_arr, rdf_arr, first_min = Radial_Pair_Distribution_Function.RDF(
                     url, cx, cy, cz, dr, rmax, e1, e2, pair_pcb, fs, mf)
+                self._rdf_cache[(e1, e2)] = {
+                    'r': r_arr, 'rdf': rdf_arr, 'first_min': first_min
+                }
+                if e1 != e2:
+                    self._rdf_cache[(e2, e1)] = self._rdf_cache[(e1, e2)]
                 for fig in figs:
                     for ax in fig.get_axes():
                         ax.set_title(f'g(r)  {e1}–{e2}', fontsize=11, color=FG)
                 all_figs.extend(figs)
+                export_data[f'{e1}-{e2}'] = (r_arr, rdf_arr)
             except _Cancelled:
                 raise
             except Exception as exc:
                 print(f"RDF pair {e1}-{e2} skipped: {exc}")
+
+        self._last_export_data = {'type': 'RDF', 'data': export_data}
+        self.after(0, self._update_cutoff_info)
+
         if not all_figs:
             raise ValueError("No RDF data computed for any element pair.")
         return all_figs
 
-    # ── Angle Distribution  (auto-detected elements) ──────────────────────────
+    # ── ADF  (direct computation from XYZ using cutoff) ──────────────────────
     def _run_angle(self):
         url = self.url_var.get().strip()
-        if not url or not os.path.isfile(url):
-            raise ValueError(self.t('err_no_xyz'))
+        self._vfile(url, 'XYZ')
+        cx = self._vfloat(self.cell_x.get(), 'X')
+        cy = self._vfloat(self.cell_y.get(), 'Y')
+        cz = self._vfloat(self.cell_z.get(), 'Z')
+        fs = self._vint(self.frame_stride_var.get(), self.t('frame_stride'), min_value=1)
+        mf = self._vint(self.max_frames_var.get(),   self.t('max_frames'),   min_value=0)
+
         try:
             elements = self._detect_elements(url)
         except Exception:
             elements = []
         if not elements:
             raise ValueError(self.t('err_no_xyz'))
-        self._threaded(Angle_Distribution_Function.sorter, (elements,))
+
+        is_auto = (self.cutoff_mode.get() == 'auto')
+
+        if is_auto and not self._rdf_cache:
+            raise ValueError(self.t('adf_no_cutoff'))
+
+        self._last_calc_type = 'ANGLE'
+        self._last_calc_label = 'all'
+        self._threaded(self._do_adf_pairs,
+                       (url, cx, cy, cz, elements, is_auto, fs, mf))
+
+    def _do_adf_pairs(self, url, cx, cy, cz, elements, is_auto, fs, mf):
+        all_figs = []
+        export_data = {}
+
+        triplets = []
+        for center in elements:
+            ligand_pairs = list(combinations_with_replacement(elements, 2))
+            for (l1, l2) in ligand_pairs:
+                triplets.append((l1, center, l2))
+
+        for (l1, center, l2) in triplets:
+            if is_auto:
+                cutoff = self._get_auto_cutoff(center, l1, l2)
+                if cutoff is None:
+                    print(f"ADF {l1}-{center}-{l2}: no cutoff available, skipping")
+                    continue
+            else:
+                cutoff_s = self.cutoff_var.get().strip()
+                if not cutoff_s:
+                    raise ValueError(self.t('adf_no_cutoff'))
+                cutoff = float(cutoff_s)
+
+            triplet_name = f'{l1}-{center}-{l2}'
+            def trip_pcb(stage, cur, total, _name=triplet_name):
+                self._pcb(f'{_name}  {stage}', cur, total)
+
+            try:
+                angles, fig = Angle_Distribution_Function.compute_adf(
+                    url, cx, cy, cz, center, l1, l2,
+                    cutoff, trip_pcb, fs, mf)
+                if angles.size > 0:
+                    for ax in fig.get_axes():
+                        ax.set_title(f'ADF {triplet_name} (cutoff={cutoff:.2f}Å)',
+                                     fontsize=10, color=FG)
+                    all_figs.append(fig)
+                    export_data[triplet_name] = (angles, None)
+                else:
+                    plt.close(fig)
+            except _Cancelled:
+                raise
+            except Exception as exc:
+                print(f"ADF {triplet_name} skipped: {exc}")
+
+        self._last_export_data = {'type': 'ADF', 'data': export_data}
+        if not all_figs:
+            raise ValueError("No ADF data computed for any triplet.")
+        return all_figs
+
+    def _get_auto_cutoff(self, center, l1, l2):
+        """Find the appropriate cutoff from RDF cache for a triplet l1-center-l2.
+
+        For the triplet Se-Ge-Se, we need the Ge-Se RDF first minimum.
+        We look up (center, l1) and (center, l2) and take the max.
+        """
+        cutoffs = []
+        for ligand in set([l1, l2]):
+            key1 = (center, ligand)
+            key2 = (ligand, center)
+            data = self._rdf_cache.get(key1) or self._rdf_cache.get(key2)
+            if data and data.get('first_min') is not None:
+                cutoffs.append(data['first_min'])
+        return max(cutoffs) if cutoffs else None
 
     # ── Coordination Heatmap  (auto-detected elements) ────────────────────────
     def _run_coord(self):
         url = self.url_var.get().strip()
         if not url or not os.path.isfile(url):
             raise ValueError(self.t('err_no_xyz'))
+
+        if not os.path.isfile('output-human-readable-coords.txt'):
+            messagebox.showwarning(self.t('error'), self.t('heatmap_warn'))
+            return
+
         try:
             elements = self._detect_elements(url)
         except Exception:
             elements = []
         if not elements:
             raise ValueError(self.t('err_no_xyz'))
+        self._last_calc_type = 'COORD'
+        self._last_calc_label = 'all'
         self._threaded(Coordination_Heatmap.coordination_heatmap, (elements,))
+
+    # ── Excel Export ──────────────────────────────────────────────────────────
+    def _export_excel(self):
+        if not self._last_export_data or not self._last_export_data.get('data'):
+            messagebox.showinfo(self.t('error'), self.t('export_no_data'))
+            return
+
+        try:
+            import openpyxl
+        except ImportError:
+            messagebox.showerror(self.t('error'),
+                                 'openpyxl is required for Excel export.\n'
+                                 'Install: pip install openpyxl')
+            return
+
+        calc_type = self._last_export_data['type']
+        data_dict = self._last_export_data['data']
+        exported = []
+
+        for name, (arr_x, arr_y) in data_dict.items():
+            fname = f'{calc_type}_{name}.xlsx'
+            wb = openpyxl.Workbook()
+            ws = wb.active
+            ws.title = name
+
+            if calc_type == 'RDF' and arr_y is not None:
+                ws.append(['r (Å)', 'g(r)'])
+                for r_val, g_val in zip(arr_x, arr_y):
+                    ws.append([float(r_val), float(g_val)])
+            elif calc_type == 'ADF':
+                ws.append(['Angle (°)'])
+                for a_val in arr_x:
+                    ws.append([float(a_val)])
+            else:
+                ws.append(['Value'])
+                for v in arr_x:
+                    ws.append([float(v)])
+
+            save_path = filedialog.asksaveasfilename(
+                initialfile=fname,
+                defaultextension='.xlsx',
+                filetypes=[('Excel', '*.xlsx')])
+            if save_path:
+                wb.save(save_path)
+                exported.append(save_path)
+
+        if exported:
+            messagebox.showinfo(self.t('conv_ok_title'),
+                                self.t('export_ok').format('\n'.join(exported)))
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -939,7 +1203,6 @@ class _BaseDialog(tk.Toplevel):
 
 
 class _RdfParamsDialog(_BaseDialog):
-    """RDF parameters dialog: r_max, dr — elements are auto-detected."""
 
     def __init__(self, parent, t_dict, elements):
         super().__init__(parent, t_dict)
@@ -952,7 +1215,6 @@ class _RdfParamsDialog(_BaseDialog):
                  bg=SURFACE, fg=FG, font=F_LB).pack(anchor='w')
         tk.Frame(outer, bg=BORDER, height=1).pack(fill='x', pady=(8, 12))
 
-        # Show auto-detected elements (read-only info)
         elem_str = self.t('detected_elements').format('  ·  '.join(elements))
         tk.Label(outer, text=elem_str,
                  bg=SURFACE, fg=ACCENTL, font=F_S,
