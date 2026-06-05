@@ -1,0 +1,31 @@
+# BELLO
+
+> Post-processing toolkit for local structural order in amorphous and disordered materials.
+
+BELLO (Bond Element Lattice Locality Order) analyzes atomistic simulation trajectories in XYZ format. It automates coordination-environment classification, Steinhardt-type order parameter q, radial/angular distribution functions, coordination heatmaps, and VASP-to-XYZ conversion — through a bilingual (English/Chinese) GUI built with Python and tkinter.
+
+## Documentation
+
+- [README](https://github.com/OldJii/BELLO/blob/main/README.md): Installation, usage guide, and project structure
+- [requirements.txt](https://github.com/OldJii/BELLO/blob/main/requirements.txt): Python dependencies
+
+## Key capabilities
+
+- Local-order classification: 0–6-fold, tetrahedral, octahedral motifs per atom per frame
+- Order parameter q: bond-orientational order for structural regularity
+- Automatic nearest-neighbor threshold from RDF first peak (Gaussian fit)
+- Partial radial pair distribution function g(r) for element pairs
+- Angle distribution with KDE fits; coordination heatmaps by element combination
+- VASP POSCAR / CONTCAR / XDATCAR → multi-frame XYZ conversion
+
+## Common questions
+
+- **Input format**: Standard XYZ trajectory files from DFT, MD, or any atomistic code
+- **VASP support**: Yes — built-in converter for POSCAR, CONTCAR, XDATCAR
+- **Languages**: English and Chinese UI toggle
+- **Platform**: macOS, Linux, Windows (Python 3.9+)
+- **License**: Open source (see repository)
+
+## Optional
+
+- [Sample trajectory test.xyz](https://github.com/OldJii/BELLO/blob/main/test.xyz): 270 Ge atoms for quick testing

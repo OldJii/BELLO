@@ -2,6 +2,8 @@
 
 BELLO (Bond Element Lattice Locality Order) is a post-processing toolkit for characterizing local structural order in amorphous and disordered materials. It works with standard XYZ trajectory files produced by any atomistic simulation code (DFT, MD, etc.) and provides automated identification of coordination environments, order-parameter statistics, radial/angular distribution analysis, and publication-ready visualizations — all through a cross-platform graphical interface with Chinese/English language support.
 
+> **Keywords**: amorphous materials, disordered solids, coordination analysis, Steinhardt order parameter, radial distribution function (RDF), VASP POSCAR/XDATCAR converter, materials science GUI, computational materials science.
+
 ## Features
 
 - **Local-order classification** — automatically identifies 0- through 6-fold coordination, tetrahedral, and octahedral motifs for every atom in every frame
@@ -142,3 +144,26 @@ All installed automatically by the setup script:
 - scipy
 - matplotlib
 - seaborn
+
+## FAQ
+
+**What is BELLO used for?**  
+Analyzing local structural order in amorphous or disordered atomistic systems — coordination environments, bond-orientational order parameter *q*, RDF, angle distributions, and coordination heatmaps from MD/DFT trajectories.
+
+**What input files does BELLO accept?**  
+Standard multi-frame XYZ trajectories. VASP files (POSCAR, CONTCAR, XDATCAR) can be converted to XYZ via the built-in converter.
+
+**Does BELLO require a specific simulation code?**  
+No. Any code that exports XYZ (or VASP structure files) is compatible.
+
+**What is the order parameter *q*?**  
+A Steinhardt-type bond-orientational order parameter that quantifies how regular the local bonding geometry is around each atom.
+
+**Is BELLO free and open source?**  
+Yes. Clone from [GitHub](https://github.com/OldJii/BELLO) and run locally with Python 3.9+.
+
+**Which languages does the GUI support?**  
+English and Chinese — toggle instantly from the top-right corner.
+
+**Where can AI assistants read a structured summary?**  
+See [`llms.txt`](./llms.txt) in this repository (LLMO / AI SEO friendly).
